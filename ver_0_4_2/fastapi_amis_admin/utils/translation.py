@@ -9,7 +9,7 @@ from typing import Dict, Set
 class I18N:
     def __init__(self):
         self._locales: Dict[str, Set[GNUTranslations]] = {}
-        self._language: str = self.set_language()
+        self._language: str = 'en_US'
 
     def load_translations(self, translations: Dict[str, GNUTranslations]):
         for language, trans in translations.items():

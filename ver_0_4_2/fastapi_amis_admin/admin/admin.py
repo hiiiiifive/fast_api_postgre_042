@@ -118,7 +118,9 @@ class LinkModelForm:
         self.path = f"/{self.display_admin.model.__name__}"
 
     @classmethod
-    def bind_model_admin(cls, pk_admin: "BaseModelAdmin", insfield: InstrumentedAttribute) -> Optional["LinkModelForm"]:
+    def bind_model_admin(
+        cls, pk_admin: "BaseModelAdmin", insfield: InstrumentedAttribute
+    ) -> Optional["LinkModelForm"]:
         if not isinstance(insfield.prop, RelationshipProperty):
             return None
         table = insfield.prop.secondary
@@ -128,13 +130,19 @@ class LinkModelForm:
         link_key = None
         item_key = None
         for key in table.foreign_keys:
-            if key.column.table != pk_admin.model.__table__:  # Get the associated third-party table
+            if (
+                key.column.table != pk_admin.model.__table__
+            ):  # Get the associated third-party table
                 admin = pk_admin.app.site.get_model_admin(key.column.table.name)
                 link_key = key
             else:
                 item_key = key
         if admin and link_key and item_key:
-            admin.link_models[pk_admin.model.__tablename__] = (table, link_key.parent, item_key.parent)
+            admin.link_models[pk_admin.model.__tablename__] = (
+                table,
+                link_key.parent,
+                item_key.parent,
+            )
             return LinkModelForm(
                 pk_admin=pk_admin,
                 display_admin=admin,
@@ -171,7 +179,11 @@ class LinkModelForm:
                         )
                     )
                 )
-                .where(self.item_col.in_(list(map(get_python_type_parse(self.item_col), item_id))))
+                .where(
+                    self.item_col.in_(
+                        list(map(get_python_type_parse(self.item_col), item_id))
+                    )
+                )
             )
             result = await self.pk_admin.db.async_execute(stmt)
             return BaseApiOut(data=result.rowcount)  # type: ignore
@@ -226,7 +238,9 @@ class LinkModelForm:
             source={
                 "method": "post",
                 "data": "${body.api.data}",
-                "url": "${body.api.url}&link_model=" + self.pk_admin.model.__tablename__ + "&link_item_id=${api.qsOptions.id}",
+                "url": "${body.api.url}&link_model="
+                + self.pk_admin.model.__tablename__
+                + "&link_item_id=${api.qsOptions.id}",
             },
         )
         adaptor = None
@@ -241,10 +255,14 @@ class LinkModelForm:
             )  # query.link_item_id
             adaptor = (
                 'if(!payload.hasOwnProperty("_payload")){payload._payload=JSON.stringify(payload);}'
-                "payload=JSON.parse(payload._payload);button_create=" + button_create.amis_json() + ";"
+                "payload=JSON.parse(payload._payload);button_create="
+                + button_create.amis_json()
+                + ";"
                 "payload.data.body.bulkActions.push(button_create);"
                 "payload.data.body.itemActions.push(button_create);"
-                "return payload;".replace("action_id", "create" + self.path.replace("/", "_"))
+                "return payload;".replace(
+                    "action_id", "create" + self.path.replace("/", "_")
+                )
             )
             button_create_dialog = ActionType.Dialog(
                 icon="fa fa-plus pull-left",
@@ -287,7 +305,9 @@ class LinkModelForm:
                 + ";payload.data.body.headerToolbar.push("
                 + button_create_dialog.amis_json()
                 + ");payload.data.body.bulkActions.push(button_delete);payload.data.body.itemActions.push(button_delete);"
-                "return payload;".replace("action_id", "delete" + self.path.replace("/", "_"))
+                "return payload;".replace(
+                    "action_id", "delete" + self.path.replace("/", "_")
+                )
             )
         return Service(
             schemaApi=AmisAPI(
@@ -322,12 +342,18 @@ class LinkModelForm:
 
 
 class BaseModelAdmin(SQLModelCrud):
-    list_display: List[Union[SQLModelListField, TableColumn]] = []  # Fields to be displayed
-    list_filter: List[Union[SQLModelListField, FormItem]] = []  # Query filterable fields
+    list_display: List[
+        Union[SQLModelListField, TableColumn]
+    ] = []  # Fields to be displayed
+    list_filter: List[
+        Union[SQLModelListField, FormItem]
+    ] = []  # Query filterable fields
     list_per_page: int = 10  # Amount of data per page
     link_model_fields: List[InstrumentedAttribute] = []  # inline field
     link_model_forms: List[LinkModelForm] = []
-    bulk_update_fields: List[Union[SQLModelListField, FormItem]] = []  # Bulk edit fields
+    bulk_update_fields: List[
+        Union[SQLModelListField, FormItem]
+    ] = []  # Bulk edit fields
     enable_bulk_create: bool = False  # whether to enable batch creation
     search_fields: List[SQLModelListField] = []  # fuzzy search fields
     page_schema: Union[PageSchema, str] = PageSchema()
@@ -339,7 +365,9 @@ class BaseModelAdmin(SQLModelCrud):
         self.engine = self.engine or self.app.engine
         self.amis_parser = self.app.site.amis_parser
         self.parser = SQLModelFieldParser(default_model=self.model)
-        list_display_insfield = self.parser.filter_insfield(self.list_display, save_class=(Label,))
+        list_display_insfield = self.parser.filter_insfield(
+            self.list_display, save_class=(Label,)
+        )
         self.list_filter = self.list_filter or list_display_insfield or [self.model]
         self.list_filter.extend(self.search_fields)
         super().__init__(self.model, self.engine)
@@ -353,23 +381,37 @@ class BaseModelAdmin(SQLModelCrud):
         self.link_model_forms = list(
             filter(
                 None,
-                [LinkModelForm.bind_model_admin(self, insfield) for insfield in self.link_model_fields],
+                [
+                    LinkModelForm.bind_model_admin(self, insfield)
+                    for insfield in self.link_model_fields
+                ],
             )
         )
         return self.link_model_forms
 
-    async def get_list_display(self, request: Request) -> List[Union[SQLModelListField, TableColumn]]:
+    async def get_list_display(
+        self, request: Request
+    ) -> List[Union[SQLModelListField, TableColumn]]:
         return self.list_display or list(self.schema_list.__fields__.values())
 
-    async def get_list_filter(self, request: Request) -> List[Union[SQLModelListField, FormItem]]:
+    async def get_list_filter(
+        self, request: Request
+    ) -> List[Union[SQLModelListField, FormItem]]:
         return self.list_filter or list(self.schema_filter.__fields__.values())
 
-    async def get_list_column(self, request: Request, modelfield: ModelField) -> TableColumn:
+    async def get_list_column(
+        self, request: Request, modelfield: ModelField
+    ) -> TableColumn:
         column = self.amis_parser.as_table_column(modelfield)
-        if await self.has_update_permission(request, None, None) and modelfield.name in self.schema_update.__fields__:
+        if (
+            await self.has_update_permission(request, None, None)
+            and modelfield.name in self.schema_update.__fields__
+        ):
             item = await self.get_form_item(request, modelfield, action=CrudEnum.update)
             if isinstance(item, BaseModel):
-                item = item.dict(exclude_none=True, by_alias=True, exclude={"name", "label"})
+                item = item.dict(
+                    exclude_none=True, by_alias=True, exclude={"name", "label"}
+                )
             if isinstance(item, dict):
                 column.quickEdit = item
                 column.quickEdit.update({"saveImmediately": True})
@@ -385,7 +427,12 @@ class BaseModelAdmin(SQLModelCrud):
             elif isinstance(field, type) and issubclass(field, SQLModel):
                 ins_list = self.parser.get_sqlmodel_insfield(field)
                 modelfields = [self.parser.get_modelfield(ins) for ins in ins_list]
-                columns.extend([await self.get_list_column(request, modelfield) for modelfield in modelfields])
+                columns.extend(
+                    [
+                        await self.get_list_column(request, modelfield)
+                        for modelfield in modelfields
+                    ]
+                )
             else:
                 modelfield = self.parser.get_modelfield(field)
                 if modelfield:
@@ -411,11 +458,14 @@ class BaseModelAdmin(SQLModelCrud):
                 data[alias] = f"[~]${alias}"
         for field in await self.get_list_filter(request):
             modelfield = self.parser.get_modelfield(field)
-            if modelfield and issubclass(modelfield.type_, (datetime.datetime, datetime.date, datetime.time)):
+            if modelfield and issubclass(
+                modelfield.type_, (datetime.datetime, datetime.date, datetime.time)
+            ):
                 data[modelfield.alias] = f"[-]${modelfield.alias}"
         return AmisAPI(
             method="POST",
-            url=f"{self.router_path}/list?" + "page=${page}&perPage=${perPage}&orderBy=${orderBy}&orderDir=${orderDir}",
+            url=f"{self.router_path}/list?"
+            + "page=${page}&perPage=${perPage}&orderBy=${orderBy}&orderDir=${orderDir}",
             data=data,
         )
 
@@ -477,7 +527,11 @@ class BaseModelAdmin(SQLModelCrud):
             return None
         url = admin.router_path + admin.page_path
         label = modelfield.field_info.title or modelfield.name
-        remark = Remark(content=modelfield.field_info.description) if modelfield.field_info.description else None
+        remark = (
+            Remark(content=modelfield.field_info.description)
+            if modelfield.field_info.description
+            else None
+        )
         picker = Picker(
             name=modelfield.alias,
             label=label,
@@ -507,12 +561,16 @@ class BaseModelAdmin(SQLModelCrud):
     ) -> Union[FormItem, SchemaNode, None]:
         is_filter = action == CrudEnum.list
         set_default = action == CrudEnum.create
-        return await self.get_form_item_on_foreign_key(request, modelfield, is_filter=is_filter) or self.amis_parser.as_form_item(
+        return await self.get_form_item_on_foreign_key(
+            request, modelfield, is_filter=is_filter
+        ) or self.amis_parser.as_form_item(
             modelfield, is_filter=is_filter, set_default=set_default
         )
 
     async def get_list_filter_form(self, request: Request) -> Form:
-        body = await self._conv_modelfields_to_formitems(request, await self.get_list_filter(request), CrudEnum.list)
+        body = await self._conv_modelfields_to_formitems(
+            request, await self.get_list_filter(request), CrudEnum.list
+        )
         return Form(
             type="",
             title=_("Filter"),
@@ -536,16 +594,25 @@ class BaseModelAdmin(SQLModelCrud):
         )
 
     async def get_create_form(self, request: Request, bulk: bool = False) -> Form:
-        fields = [field for field in self.schema_create.__fields__.values() if field.name != self.pk_name]
+        fields = [
+            field
+            for field in self.schema_create.__fields__.values()
+            if field.name != self.pk_name
+        ]
+        
         if not bulk:
             return Form(
                 api=f"post:{self.router_path}/item",
                 name=CrudEnum.create,
-                body=await self._conv_modelfields_to_formitems(request, fields, CrudEnum.create),
+                body=await self._conv_modelfields_to_formitems(
+                    request, fields, CrudEnum.create
+                ),
             )
         columns, keys = [], {}
         for field in fields:
-            column = await self.get_list_column(request, self.parser.get_modelfield(field))
+            column = await self.get_list_column(
+                request, self.parser.get_modelfield(field)
+            )
             keys[column.name] = "${" + column.label + "}"
             column.name = column.label
             columns.append(column)
@@ -560,7 +627,7 @@ class BaseModelAdmin(SQLModelCrud):
                 InputExcel(name="excel"),
                 InputTable(
                     name="excel",
-                    showIndex=True,
+                    showIndex=False,
                     columns=columns,
                     addable=True,
                     copyable=True,
@@ -583,7 +650,9 @@ class BaseModelAdmin(SQLModelCrud):
         return Form(
             api=api,
             name=CrudEnum.update,
-            body=await self._conv_modelfields_to_formitems(request, fields, CrudEnum.update),
+            body=await self._conv_modelfields_to_formitems(
+                request, fields, CrudEnum.update
+            ),
             submitText=None,
             trimValues=True,
             **extra,
@@ -593,7 +662,9 @@ class BaseModelAdmin(SQLModelCrud):
         return Form(
             initApi=f"get:{self.router_path}/item/${self.pk_name}",
             name=CrudEnum.read,
-            body=await self._conv_modelfields_to_formitems(request, self.schema_read.__fields__.values(), CrudEnum.read),
+            body=await self._conv_modelfields_to_formitems(
+                request, self.schema_read.__fields__.values(), CrudEnum.read
+            ),
             submitText=None,
             static=True,
         )
@@ -612,7 +683,9 @@ class BaseModelAdmin(SQLModelCrud):
             ),
         )
 
-    async def get_create_action(self, request: Request, bulk: bool = False) -> Optional[Action]:
+    async def get_create_action(
+        self, request: Request, bulk: bool = False
+    ) -> Optional[Action]:
         if not await self.has_create_permission(request, None):
             return None
         if not bulk:
@@ -637,7 +710,26 @@ class BaseModelAdmin(SQLModelCrud):
             ),
         )
 
-    async def get_update_action(self, request: Request, bulk: bool = False) -> Optional[Action]:
+    async def get_text_create_action(
+        self, request: Request, bulk: bool = True
+    ) -> Optional[Action]:
+        if not await self.has_create_permission(request, None):
+            return None
+
+        return ActionType.Dialog(
+            icon="fa fa-plus pull-left",
+            label=_("Bulk Create"),
+            level=LevelEnum.primary,
+            dialog=Dialog(
+                title=_("Bulk Create") + " - " + _(self.page_schema.label),
+                size=SizeEnum.full,
+                body=await self.get_create_form(request, bulk=bulk),
+            ),
+        )
+
+    async def get_update_action(
+        self, request: Request, bulk: bool = False
+    ) -> Optional[Action]:
         if not await self.has_update_permission(request, None, None):
             return None
         # Turn on batch editing
@@ -665,7 +757,9 @@ class BaseModelAdmin(SQLModelCrud):
         else:
             return None
 
-    async def get_delete_action(self, request: Request, bulk: bool = False) -> Optional[Action]:
+    async def get_delete_action(
+        self, request: Request, bulk: bool = False
+    ) -> Optional[Action]:
         if not await self.has_delete_permission(request, None):
             return None
         return (
@@ -678,7 +772,8 @@ class BaseModelAdmin(SQLModelCrud):
             else ActionType.Ajax(
                 icon="fa fa-times text-danger",
                 tooltip=_("Delete"),
-                confirmText=_("Are you sure you want to delete row ${%s}?") % self.pk_name,
+                confirmText=_("Are you sure you want to delete row ${%s}?")
+                % self.pk_name,
                 api=f"delete:{self.router_path}/item/${self.pk_name}",
             )
         )
@@ -686,6 +781,8 @@ class BaseModelAdmin(SQLModelCrud):
     async def get_actions_on_header_toolbar(self, request: Request) -> List[Action]:
         actions = [
             await self.get_create_action(request, bulk=False),
+            await self.get_create_action(request, bulk=True),
+            # await self.get_text_create_action(request, bulk=True),
         ]
         if self.enable_bulk_create:
             actions.append(await self.get_create_action(request, bulk=True))
@@ -751,7 +848,9 @@ class PageSchemaAdmin(BaseAdmin):
         super().__init__(app)
         self.page_schema = self.get_page_schema()
         if self.page_schema and self.page_schema.url:
-            self.page_schema.url = self.page_schema.url.replace(self.site.settings.site_url, "")
+            self.page_schema.url = self.page_schema.url.replace(
+                self.site.settings.site_url, ""
+            )
         self.group_schema = self.get_group_schema()
 
     async def has_page_permission(self, request: Request) -> bool:
@@ -763,7 +862,9 @@ class PageSchemaAdmin(BaseAdmin):
                 self.page_schema = PageSchema(label=self.page_schema)
             elif isinstance(self.page_schema, PageSchema):
                 self.page_schema = self.page_schema.copy(deep=True)
-                self.page_schema.label = self.page_schema.label or self.__class__.__name__
+                self.page_schema.label = (
+                    self.page_schema.label or self.__class__.__name__
+                )
             else:
                 raise TypeError()
         return self.page_schema
@@ -798,7 +899,9 @@ class IframeAdmin(PageSchemaAdmin):
         if super().get_page_schema():
             assert self.src, "src is None"
             iframe = self.iframe or Iframe(src=self.src)
-            if self.site.settings.site_url and iframe.src.startswith(self.site.settings.site_url):
+            if self.site.settings.site_url and iframe.src.startswith(
+                self.site.settings.site_url
+            ):
                 self.page_schema.url = iframe.src
             else:
                 self.page_schema.url = re.sub(r"^https?:", "", iframe.src)
@@ -838,7 +941,9 @@ class PageAdmin(PageSchemaAdmin, RouterAdmin):
         PageSchemaAdmin.__init__(self, app)
 
     async def page_permission_depend(self, request: Request) -> bool:
-        return await self.has_page_permission(request) or self.error_no_page_permission(request)
+        return await self.has_page_permission(request) or self.error_no_page_permission(
+            request
+        )
 
     def error_no_page_permission(self, request: Request):
         raise HTTPException(
@@ -956,13 +1061,19 @@ class BaseFormAdmin(PageAdmin, Generic[SchemaUpdateT]):
         page.body = await self.get_form(request)
         return page
 
-    async def get_form_item(self, request: Request, modelfield: ModelField) -> Union[FormItem, SchemaNode]:
+    async def get_form_item(
+        self, request: Request, modelfield: ModelField
+    ) -> Union[FormItem, SchemaNode]:
         return self.site.amis_parser.as_form_item(modelfield, set_default=True)
 
     async def get_form(self, request: Request) -> Form:
         form = self.form or Form()
         form.api = AmisAPI(method="POST", url=f"{self.router_path}{self.form_path}")
-        form.initApi = AmisAPI(method="GET", url=f"{self.router_path}{self.form_path}") if self.form_init else None
+        form.initApi = (
+            AmisAPI(method="GET", url=f"{self.router_path}{self.form_path}")
+            if self.form_init
+            else None
+        )
         form.title = ""
         form.body = []
         if self.schema:
@@ -1007,7 +1118,9 @@ class FormAdmin(BaseFormAdmin):
 
         return route
 
-    async def handle(self, request: Request, data: SchemaUpdateT, **kwargs) -> BaseApiOut[Any]:
+    async def handle(
+        self, request: Request, data: SchemaUpdateT, **kwargs
+    ) -> BaseApiOut[Any]:
         raise NotImplementedError
 
     async def get_init_data(self, request: Request, **kwargs) -> BaseApiOut[Any]:
@@ -1058,10 +1171,14 @@ class ModelAdmin(BaseModelAdmin, PageAdmin):
     ) -> bool:
         return await self.has_page_permission(request)
 
-    async def has_create_permission(self, request: Request, data: SchemaCreateT, **kwargs) -> bool:  # type self.schema_create
+    async def has_create_permission(
+        self, request: Request, data: SchemaCreateT, **kwargs
+    ) -> bool:  # type self.schema_create
         return await self.has_page_permission(request)
 
-    async def has_read_permission(self, request: Request, item_id: List[str], **kwargs) -> bool:
+    async def has_read_permission(
+        self, request: Request, item_id: List[str], **kwargs
+    ) -> bool:
         return await self.has_page_permission(request)
 
     async def has_update_permission(
@@ -1073,7 +1190,9 @@ class ModelAdmin(BaseModelAdmin, PageAdmin):
     ) -> bool:
         return await self.has_page_permission(request)
 
-    async def has_delete_permission(self, request: Request, item_id: List[str], **kwargs) -> bool:
+    async def has_delete_permission(
+        self, request: Request, item_id: List[str], **kwargs
+    ) -> bool:
         return await self.has_page_permission(request)
 
 
@@ -1099,7 +1218,9 @@ class BaseModelAction:
 
     async def fetch_item_scalars(self, item_id: List[str]) -> List[SchemaModelT]:
         # noinspection PyProtectedMember
-        return await self.admin.db.async_run_sync(self.admin._fetch_item_scalars, item_id)
+        return await self.admin.db.async_run_sync(
+            self.admin._fetch_item_scalars, item_id
+        )
 
     def register_router(self):
         raise NotImplementedError
@@ -1115,13 +1236,21 @@ class FormAction(FormAdmin, BaseFormAction):
         FormAdmin.__init__(self, self.admin.app)
 
     async def get_action(self, request: Request, **kwargs) -> Action:
-        action = self.action or ActionType.Dialog(label=_("Custom form actions"), dialog=Dialog())
-        action.dialog.title = action.dialog.title or action.label  # only override if not set
+        action = self.action or ActionType.Dialog(
+            label=_("Custom form actions"), dialog=Dialog()
+        )
+        action.dialog.title = (
+            action.dialog.title or action.label
+        )  # only override if not set
         action.dialog.size = action.dialog.size or SizeEnum.xl
-        action.dialog.body = action.dialog.body or ""  # keep it empty for non model related custom form
+        action.dialog.body = (
+            action.dialog.body or ""
+        )  # keep it empty for non model related custom form
         return action
 
-    async def handle(self, request: Request, data: BaseModel, **kwargs) -> BaseApiOut[Any]:
+    async def handle(
+        self, request: Request, data: BaseModel, **kwargs
+    ) -> BaseApiOut[Any]:
         return BaseApiOut(data=data)
 
 
@@ -1134,8 +1263,12 @@ class ModelAction(BaseFormAdmin, BaseModelAction):
         BaseFormAdmin.__init__(self, self.admin.app)
 
     async def get_action(self, request: Request, **kwargs) -> Action:
-        action = self.action or ActionType.Dialog(label=_("Custom form actions"), dialog=Dialog())
-        action.dialog.title = action.dialog.title or action.label  # only override if not set
+        action = self.action or ActionType.Dialog(
+            label=_("Custom form actions"), dialog=Dialog()
+        )
+        action.dialog.title = (
+            action.dialog.title or action.label
+        )  # only override if not set
         action.dialog.body = Service(
             schemaApi=AmisAPI(
                 method="post",
@@ -1149,7 +1282,13 @@ class ModelAction(BaseFormAdmin, BaseModelAction):
         )
         return action
 
-    async def handle(self, request: Request, item_id: List[str], data: Optional[SchemaUpdateT], **kwargs) -> BaseApiOut[Any]:
+    async def handle(
+        self,
+        request: Request,
+        item_id: List[str],
+        data: Optional[SchemaUpdateT],
+        **kwargs,
+    ) -> BaseApiOut[Any]:
         return BaseApiOut(data=data)
 
     @property
@@ -1166,7 +1305,9 @@ class ModelAction(BaseFormAdmin, BaseModelAction):
                 description="Primary key or list of primary keys",
             ),
         ):
-            return await self.handle(request, parser_str_set_list(set_str=item_id), data)
+            return await self.handle(
+                request, parser_str_set_list(set_str=item_id), data
+            )
 
         return route
 
@@ -1183,7 +1324,9 @@ class AdminGroup(PageSchemaAdmin):
             unique_str += self._children[0].unique_id
         return md5_hex(unique_str)[:16]
 
-    def append_child(self, child: _PageSchemaAdminT, group_schema: PageSchema = None) -> None:
+    def append_child(
+        self, child: _PageSchemaAdminT, group_schema: PageSchema = None
+    ) -> None:
         if not child.page_schema:
             return
         group_label = group_schema and group_schema.label
@@ -1191,7 +1334,11 @@ class AdminGroup(PageSchemaAdmin):
             self._children.append(child)
         else:
             for item in self._children:
-                if isinstance(item, AdminGroup) and item.page_schema and item.page_schema.label == group_label:
+                if (
+                    isinstance(item, AdminGroup)
+                    and item.page_schema
+                    and item.page_schema.label == group_label
+                ):
                     item.append_child(child, group_schema=None)
                     return
             group = AdminGroup(self.app)
@@ -1251,7 +1398,9 @@ class AdminApp(PageAdmin, AdminGroup):
     def router_prefix(self):
         return f"/{self.__class__.__name__}"
 
-    def get_admin_or_create(self, admin_cls: Type[_BaseAdminT], register: bool = True) -> Optional[_BaseAdminT]:
+    def get_admin_or_create(
+        self, admin_cls: Type[_BaseAdminT], register: bool = True
+    ) -> Optional[_BaseAdminT]:
         if admin_cls not in self._registered and (not register or self.__register_lock):
             return None
         admin = self._registered.get(admin_cls)
@@ -1267,7 +1416,11 @@ class AdminApp(PageAdmin, AdminGroup):
         [self.get_admin_or_create(admin_cls) for admin_cls in self._registered.keys()]
 
     def _register_admin_router_all_pre(self):
-        [admin.get_link_model_forms() for admin in self._registered.values() if isinstance(admin, ModelAdmin)]
+        [
+            admin.get_link_model_forms()
+            for admin in self._registered.values()
+            if isinstance(admin, ModelAdmin)
+        ]
 
     def _register_admin_router_all(self):
         for admin in self._registered.values():
@@ -1288,7 +1441,11 @@ class AdminApp(PageAdmin, AdminGroup):
     def get_model_admin(self, table_name: str) -> Optional[ModelAdmin]:
         for admin_cls, admin in self._registered.items():
             admin = admin or self.get_admin_or_create(admin_cls)
-            if issubclass(admin_cls, ModelAdmin) and admin.bind_model and admin.model.__tablename__ == table_name:
+            if (
+                issubclass(admin_cls, ModelAdmin)
+                and admin.bind_model
+                and admin.model.__tablename__ == table_name
+            ):
                 return admin
             elif isinstance(admin, AdminApp) and self.engine is admin.engine:
                 admin = admin.get_model_admin(table_name)
@@ -1340,7 +1497,11 @@ class AdminApp(PageAdmin, AdminGroup):
     async def _get_page_as_tabs(self, request: Request) -> Page:
         page = await super(AdminApp, self).get_page(request)
         children = await self.get_page_schema_children(request)
-        page.body = PageSchema(children=children).as_tabs_item(tabs_extra=dict(tabsMode=self.tabs_mode, mountOnEnter=True)).tab
+        page.body = (
+            PageSchema(children=children)
+            .as_tabs_item(tabs_extra=dict(tabsMode=self.tabs_mode, mountOnEnter=True))
+            .tab
+        )
         return page
 
 
@@ -1368,7 +1529,9 @@ class BaseAdminSite(AdminApp):
         if engine:
             self.engine = engine
         elif settings.database_url_async:
-            self.engine = AsyncDatabase.create(settings.database_url_async, echo=settings.debug)
+            self.engine = AsyncDatabase.create(
+                settings.database_url_async, echo=settings.debug
+            )
         elif settings.database_url:
             self.engine = Database.create(settings.database_url, echo=settings.debug)
         super().__init__(self)

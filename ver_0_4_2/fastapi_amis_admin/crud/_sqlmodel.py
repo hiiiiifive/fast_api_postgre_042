@@ -15,7 +15,7 @@ from typing import (
 )
 
 from fastapi import APIRouter, Body, Depends, Query
-from fastapi.encoders import DictIntStrAny, SetIntStr
+
 from pydantic import Extra, Json
 from pydantic.fields import ModelField
 from pydantic.utils import ValueItems
@@ -25,6 +25,11 @@ from sqlalchemy.orm import InstrumentedAttribute, Session, object_session
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.elements import BinaryExpression, Label, UnaryExpression
 from starlette.requests import Request
+
+
+
+DictIntStrAny = dict[Union[int, str], Any]
+SetIntStr = set[Union[int, str]]
 
 try:
     from functools import cached_property
