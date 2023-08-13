@@ -52,6 +52,7 @@ class PageDevelopers(SQLModel, table=True):
 class CategoryAdmin(admin.ModelAdmin):
     group_schema = None
     page_schema = "Category"
+    enable_bulk_create = True
     model = PageDevelopers
 
 

@@ -1,5 +1,6 @@
 import datetime
 import re
+import json
 from functools import lru_cache
 from typing import (
     Any,
@@ -40,12 +41,16 @@ from fastapi_amis_admin.amis.components import (
     Action,
     ActionType,
     App,
+    Button,
     ColumnOperation,
     Dialog,
     Form,
+    Custom,
+    InputText,
     FormItem,
     Iframe,
     InputExcel,
+    Textarea,
     InputTable,
     Page,
     PageSchema,
@@ -593,6 +598,100 @@ class BaseModelAdmin(SQLModelCrud):
             trimValues=True,
         )
 
+    async def get_create_text_form(self, request: Request) -> Form:
+        # fields = [
+        #     field.name
+        #     for field in self.schema_create.__fields__.values()
+        #     if field.name != self.pk_name
+        # ]
+        # columns, keys = [], {}
+        # for field in fields:
+        #     column = await self.get_list_column(
+        #         request, self.parser.get_modelfield(field)
+        #     )
+        # keys[column.name] = "${" + column.label + "}"
+        # return Form(
+        #     api=AmisAPI(
+        #         method="post",
+        #         url=f"{self.router_path}/item",
+        #         data=await self._conv_list_to_dict(
+        #             fields, "${texta}".split(",")[0]
+        #         )
+        #     ),
+        #     mode=DisplayModeEnum.normal,
+        #     body=[
+        #         InputText(
+        #             name="texta",
+        #         )
+        #     ],
+        #     actions=[
+        #         Action(actionType="submit", label=_("Search"), level=LevelEnum.primary),
+        #     ]
+        # )
+        fields = [
+            field
+            for field in self.schema_create.__fields__.values()
+            if field.name != self.pk_name
+        ]
+
+        columns, keys = [], {}
+        for field in fields:
+            column = await self.get_list_column(
+                request, self.parser.get_modelfield(field)
+            )
+            keys[column.name] = "${" + column.label + "}"
+            column.name = column.label
+            columns.append(column)
+        return Form(
+            api=AmisAPI(
+                method="post",
+                url=f"{self.router_path}/item",
+                data={"&": {"$table": keys}},
+            ),
+            mode=DisplayModeEnum.normal,
+            body=[
+                Textarea(
+                    name="raw_text",
+                    value=","
+                ),
+                Button(
+                    type="button",
+                    label="Add Raw Text",
+                    onEvent={
+                        "click": {
+                            "actions": [
+                                Action(
+                                    componentId="input-table",
+                                    actionType="setValue",
+                                    args={
+                                        "value": [
+                                            # {"text": "${raw_text}"}
+                                            {
+                                                "col1": "${raw_text}".split(",")[0],
+                                                "col2": "${raw_text}".split(",")[0]
+                                            }
+                                        ]
+                                    }
+                                )
+                            ]
+                        }
+                    }
+                ),
+                InputTable(
+                    id="input-table",
+                    name="table",
+                    showIndex=False,
+                    columns=columns,
+                    addable=True,
+                    copyable=True,
+                    editable=True,
+                    removable=True,
+                ),
+            ],
+        )
+
+
+
     async def get_create_form(self, request: Request, bulk: bool = False) -> Form:
         fields = [
             field
@@ -620,13 +719,61 @@ class BaseModelAdmin(SQLModelCrud):
             api=AmisAPI(
                 method="post",
                 url=f"{self.router_path}/item",
-                data={"&": {"$excel": keys}},
+                data={"&": {"$table": keys}},
             ),
             mode=DisplayModeEnum.normal,
             body=[
-                InputExcel(name="excel"),
+                Textarea(
+                    id="raw_text",
+                    name="raw_text",
+                ),
+                Textarea(
+                    id="parsed_text",
+                    name="parsed_text"
+                ),
+                Custom(
+                    name="raw_text",
+                    type="custom",
+                    label="Parse",
+                    onMount="""
+                        const button = document.createElement('button');
+                        button.innerText = 'Parse';
+                        button.onclick = event => {
+                            try {
+                                const $rawText = document.querySelector('textarea[name=raw_text]');
+                                const parsedValue = $rawText.value.split('\\n').map(column => {
+                                    const [col1, col2] = column.split(',');
+                                    return {col1, col2};
+                                });
+                                onChange(JSON.stringify(parsedValue), 'parsed_text');
+                                event.preventDefault();
+                            } catch (e) {
+                                alert('올바른 값을 입력해주세요.');
+                            }
+                        }
+                        dom.appendChild(button);
+                    """
+                ),
+                Button(
+                    type="button",
+                    label="Add Parsed Text",
+                    onEvent={
+                        "click": {
+                            "actions": [
+                                Action(
+                                    componentId="input-table",
+                                    actionType="setValue",
+                                    args={
+                                        "value": "${parsed_text | toJson}"
+                                    }
+                                )
+                            ]
+                        }
+                    }
+                ),
                 InputTable(
-                    name="excel",
+                    id="input-table",
+                    name="table",
                     showIndex=False,
                     columns=columns,
                     addable=True,
@@ -711,19 +858,19 @@ class BaseModelAdmin(SQLModelCrud):
         )
 
     async def get_text_create_action(
-        self, request: Request, bulk: bool = True
+        self, request: Request
     ) -> Optional[Action]:
         if not await self.has_create_permission(request, None):
             return None
 
         return ActionType.Dialog(
             icon="fa fa-plus pull-left",
-            label=_("Bulk Create"),
+            label=_("Hyein Create"),
             level=LevelEnum.primary,
             dialog=Dialog(
-                title=_("Bulk Create") + " - " + _(self.page_schema.label),
+                title=_("Hyein Create") + " - " + _(self.page_schema.label),
                 size=SizeEnum.full,
-                body=await self.get_create_form(request, bulk=bulk),
+                body=await self.get_create_text_form(request),
             ),
         )
 
@@ -781,8 +928,7 @@ class BaseModelAdmin(SQLModelCrud):
     async def get_actions_on_header_toolbar(self, request: Request) -> List[Action]:
         actions = [
             await self.get_create_action(request, bulk=False),
-            await self.get_create_action(request, bulk=True),
-            # await self.get_text_create_action(request, bulk=True),
+            await self.get_text_create_action(request),
         ]
         if self.enable_bulk_create:
             actions.append(await self.get_create_action(request, bulk=True))
@@ -802,6 +948,16 @@ class BaseModelAdmin(SQLModelCrud):
             await self.get_delete_action(request, bulk=True),
         ]
         return list(filter(None, bulkActions))
+
+    
+    async def _conv_list_to_dict(
+        self,
+        col_list,
+        data_str
+    ) :
+        print(col_list)
+        print(dict(zip( col_list, data_str.split(","))) )
+        return dict(zip( col_list, data_str.split(","))) 
 
     async def _conv_modelfields_to_formitems(
         self,
